@@ -1,0 +1,113 @@
+#diag sys cpuset process <pid>
+#diag sys cpuset interrupt <interrupt>
+
+If only 2 CPU high load, instead of 8 CPU if using FGVM08, check ticket 5956614, mantis 796937
+
+If SYN flood causing high cpu:
+>> Make sure ipsec-soft-dec-asyn is enabled
+>> Configure DoS policy
+
+
+By default, VM port1 and port2 interrupt is handle by CPU0, to distribute the load to other CPU, configure the below
+
+1). Disable global option
+    config system global
+        set ipsec-soft-dec-async disable
+    end
+  2). set affinity according to the CLI(in my previous update).
+      config system affinity-interrupt
+   
+   We think this solution will resolve the customer issue. If the CPU0 is still busy on the customer site after implementing the solution. We will use the Linux RPS to distribute the interrupt in software matter.
+
+- was it some kind of SYN attack?
+It's more like a traffic increase that caused 100% usage of CPU0(which handles all the interruptions) that caused the subsequent symptoms.
+There is no direct evidence with existing logs to prove it's an SYN attack.
+The packet capture is the most useful data but it was not captured during issue occurrence.
+On the flip side, the session setup rate has no significant difference between and after the issue. This may be good evidence of not an SYN attack.
+
+For 8 CPU 
+
+If the NIC has restricted number of TX/RX queue, eg some nic only has 1 tx/rx queue, can only interrupt 1 cpu, use following:
+
+config system affinity-packet-redistribution
+edit 1
+set interface portx
+set affinity-cpumask 0xFF
+end
+
+config system affinity-interrupt
+edit 1
+set interrupt "sriovslv0-TxRx-0"
+set affinity-cpumask "0x00000000000000FF" <-- tested seems like no use, 1 specific interrupt can only interrupt 1 cpu, only CPU0 is high
+next
+edit 2
+set interrupt "sriovslv1-TxRx-0"
+set affinity-cpumask "0x00000000000000FF"
+next
+
+config system affinity-interrupt
+    edit 1
+        set interrupt "port1-Tx-Rx-0"
+        set affinity-cpumask "0x0000000000000001"
+    next
+    edit 2
+        set interrupt "port1-Tx-Rx-1"
+        set affinity-cpumask "0x0000000000000002"
+    next
+    edit 8
+        set interrupt "port1-Tx-Rx-7"
+        set affinity-cpumask "0x0000000000000080"
+    next
+    edit 4
+        set interrupt "port1-Tx-Rx-3"
+        set affinity-cpumask "0x0000000000000008"
+    next
+    edit 5
+        set interrupt "port1-Tx-Rx-4"
+        set affinity-cpumask "0x0000000000000010"
+    next
+    edit 6
+        set interrupt "port1-Tx-Rx-5"
+        set affinity-cpumask "0x0000000000000020"
+    next
+    edit 7
+        set interrupt "port1-Tx-Rx-6"
+        set affinity-cpumask "0x0000000000000040"
+    next
+    edit 3
+        set interrupt "port1-Tx-Rx-2"
+        set affinity-cpumask "0x0000000000000004"
+    next
+    edit 9
+        set interrupt "port2-Tx-Rx-0"
+        set affinity-cpumask "0x0000000000000001"
+    next
+    edit 10
+        set interrupt "port2-Tx-Rx-1"
+        set affinity-cpumask "0x0000000000000002"
+    next
+    edit 11
+        set interrupt "port2-Tx-Rx-7"
+        set affinity-cpumask "0x0000000000000080"
+    next
+    edit 12
+        set interrupt "port2-Tx-Rx-3"
+        set affinity-cpumask "0x0000000000000008"
+    next
+    edit 13
+        set interrupt "port2-Tx-Rx-4"
+        set affinity-cpumask "0x0000000000000010"
+    next
+    edit 14
+        set interrupt "port2-Tx-Rx-5"
+        set affinity-cpumask "0x0000000000000020"
+    next
+    edit 15
+        set interrupt "port2-Tx-Rx-6"
+        set affinity-cpumask "0x0000000000000040"
+    next
+    edit 16
+        set interrupt "port2-Tx-Rx-2"
+        set affinity-cpumask "0x0000000000000004"
+    next
+end
